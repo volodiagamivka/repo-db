@@ -21,41 +21,17 @@ jobs:
           key: ${{ secrets.AZURE_SSH_KEY }}
           port: 22
           script: |
-            echo "Starting deployment..."
-            cd ~/repo-db || cd ~/hospital-api || { echo " Directory not found!"; exit 1; }
+            echo " Starting deployment..."
+            cd ~/repo-db
 
-            echo "Pulling latest changes..."
+            echo " Pulling latest changes..."
             git fetch origin
-            git reset --hard origin/main  
+            git reset --hard origin/main
 
-            echo "Installing/updating dependencies..."
-            if [ -d "venv" ]; then
-              source venv/bin/activate
-              pip install --upgrade pip
-              pip install -r requirements.txt
-            else
-              python3 -m venv venv
-              source venv/bin/activate
-              pip install --upgrade pip
-              pip install -r requirements.txt
-            fi
-
-            echo "Restarting service..."
-            if systemctl list-unit-files | grep -q "hospital-app.service"; then
-              sudo systemctl restart hospital-app
-              SERVICE_NAME="hospital-app"
-            elif systemctl list-unit-files | grep -q "hospital-api.service"; then
-              sudo systemctl restart hospital-api
-              SERVICE_NAME="hospital-api"
-            else
-              echo "Error: No service found (hospital-app or hospital-api)"
-              exit 1
-            fi
-
-            echo "Waiting for service to start..."
-            sleep 5
+            echo " Restarting service..."
+            sudo systemctl restart hospital-api
 
             echo "Checking service status..."
-            sudo systemctl status $SERVICE_NAME --no-pager
+            sudo systemctl status hospital-api --no-pager
 
-            echo "Deployment completed!"
+            echo " Deployment completed!"
