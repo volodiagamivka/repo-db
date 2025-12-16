@@ -22,148 +22,40 @@ jobs:
           port: 22
           script: |
             echo "Starting deployment..."
+            cd ~/repo-db || cd ~/hospital-api || { echo " Directory not found!"; exit 1; }
 
-            # Work directly with ~/repo-db (no copying to other directories)
-            APP_DIR="$HOME/repo-db"
+            echo "Pulling latest changes..."
+            git fetch origin
+            git reset --hard origin/main 
 
-            if [ ! -d "$APP_DIR" ]; then
-              echo "Creating $APP_DIR directory..."
-              mkdir -p $APP_DIR
-            fi
-
-            cd $APP_DIR
-            echo "Working directory: $APP_DIR"
-
-            echo "Updating git repository..."
-            if [ -d ".git" ]; then
-              git fetch origin
-              git reset --hard origin/main
-              git clean -fd
-            else
-              echo "Initializing git repository..."
-              git init
-              git remote add origin https://github.com/volodiagamivka/repo-db.git || git remote set-url origin https://github.com/volodiagamivka/repo-db.git
-              git fetch origin
-              git checkout -b main || git checkout main
-              git reset --hard origin/main
-            fi
-
-            echo "Cleaning Python cache..."
-            find $APP_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-            find $APP_DIR -type f -name "*.pyc" -delete 2>/dev/null || true
-            find $APP_DIR -type f -name "*.pyo" -delete 2>/dev/null || true
-
-            echo "Updating Python dependencies..."
+            echo "Installing/updating dependencies..."
             if [ -d "venv" ]; then
               source venv/bin/activate
               pip install --upgrade pip
-              pip install -r requirements.txt --upgrade --quiet
+              pip install -r requirements.txt
             else
-              echo "Creating new venv..."
               python3 -m venv venv
               source venv/bin/activate
               pip install --upgrade pip
               pip install -r requirements.txt
             fi
 
-            echo "Updating systemd service to use $APP_DIR..."
-            sudo tee /etc/systemd/system/hospital-api.service > /dev/null <<EOF
-            [Unit]
-            Description=Hospital Management API
-            After=network.target
-
-            [Service]
-            Type=notify
-            User=$USER
-            WorkingDirectory=$APP_DIR
-            Environment="PATH=$APP_DIR/venv/bin"
-            ExecStart=$APP_DIR/venv/bin/gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 120 --access-logfile - --error-logfile - app:app
-            Restart=always
-            RestartSec=10
-
-            [Install]
-            WantedBy=multi-user.target
-            EOF
-
-            echo "Reloading systemd daemon..."
-            sudo systemctl daemon-reload
-
-            echo "Stopping service completely..."
-            if sudo systemctl is-active --quiet hospital-api 2>/dev/null; then
-              echo "Service is active, stopping..."
-              sudo systemctl stop hospital-api || echo "Warning: Failed to stop service gracefully"
-              sleep 3
+            echo "Restarting service..."
+            if systemctl list-unit-files | grep -q "hospital-app.service"; then
+              sudo systemctl restart hospital-app
+              SERVICE_NAME="hospital-app"
+            elif systemctl list-unit-files | grep -q "hospital-api.service"; then
+              sudo systemctl restart hospital-api
+              SERVICE_NAME="hospital-api"
             else
-              echo "Service is not active"
-            fi
-
-            # Check for any remaining gunicorn processes and kill them individually by PID
-            echo "Checking for remaining gunicorn processes..."
-            PIDS=$(pgrep -f "gunicorn.*app:app" 2>/dev/null || true)
-            if [ -n "$PIDS" ]; then
-              echo "Found remaining gunicorn processes: $PIDS"
-              for PID in $PIDS; do
-                # Only kill if it's actually a gunicorn process for our app
-                if ps -p $PID -o cmd= 2>/dev/null | grep -q "gunicorn.*app:app"; then
-                  echo "Killing process $PID"
-                  sudo kill -TERM $PID 2>/dev/null || true
-                fi
-              done
-              sleep 2
-              # Force kill if still running
-              REMAINING=$(pgrep -f "gunicorn.*app:app" 2>/dev/null || true)
-              if [ -n "$REMAINING" ]; then
-                echo "Force killing remaining processes: $REMAINING"
-                for PID in $REMAINING; do
-                  sudo kill -KILL $PID 2>/dev/null || true
-                done
-                sleep 1
-              fi
-            else
-              echo "No remaining gunicorn processes found"
-            fi
-
-            echo "Starting service..."
-            if ! sudo systemctl start hospital-api; then
-
-              echo "Checking service logs..."
-              sudo journalctl -u hospital-api -n 30 --no-pager
+              echo "Error: No service found (hospital-app or hospital-api)"
               exit 1
             fi
 
             echo "Waiting for service to start..."
             sleep 5
 
-            # Wait for service to become active with timeout
-            TIMEOUT=30
-            ELAPSED=0
-            while [ $ELAPSED -lt $TIMEOUT ]; do
-              if sudo systemctl is-active --quiet hospital-api 2>/dev/null; then
-              
-                break
-              fi
-              sleep 1
-              ELAPSED=$((ELAPSED + 1))
-            done
-
             echo "Checking service status..."
-            sudo systemctl status hospital-api --no-pager || true
-
-            echo "Verifying service is active..."
-            if sudo systemctl is-active --quiet hospital-api; then
-              
-              
-              sleep 2
-              if sudo netstat -tlnp 2>/dev/null | grep :5000 || sudo ss -tlnp 2>/dev/null | grep :5000; then
-
-              else
-                
-              fi
-            else
-             
-              echo "Checking service logs..."
-              sudo journalctl -u hospital-api -n 50 --no-pager
-              exit 1
-            fi
+            sudo systemctl status $SERVICE_NAME --no-pager
 
             echo "Deployment completed!"
