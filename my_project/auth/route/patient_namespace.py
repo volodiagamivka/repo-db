@@ -5,10 +5,9 @@ from flask_restx import Namespace, Resource, fields
 from my_project.auth.service.PatientService import PatientService
 from datetime import datetime
 
-# Create namespace
 patient_ns = Namespace('patients', description='Patient operations')
 
-# Models for Swagger documentation
+
 patient_model = patient_ns.model('Patient', {
     'patients_id': fields.Integer(readonly=True, description='Patient ID'),
     'first_name': fields.String(required=True, description='First name'),
