@@ -15,10 +15,8 @@ def create_app():
     db_password = os.getenv('DB_PASSWORD', 'password')
     db_name = os.getenv('DB_NAME', 'hospitalss')
     db_port = os.getenv('DB_PORT', '3306')
-    db_ssl_ca = os.getenv('DB_SSL_CA', '')  # Шлях до SSL сертифікату Azure (опціонально)
+    db_ssl_ca = os.getenv('DB_SSL_CA', '') 
     
-    # Формуємо connection string для Azure MySQL
-    # Azure MySQL вимагає SSL, але можна вимкнути перевірку для тестування
     ssl_params = 'ssl_disabled=true' if os.getenv('DB_SSL_DISABLED', 'false').lower() == 'true' else 'ssl_verify_cert=false&ssl_verify_identity=false'
     
     app.config['SQLALCHEMY_DATABASE_URI'] = f'mysql+pymysql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}?{ssl_params}&charset=utf8mb4'
@@ -30,7 +28,7 @@ def create_app():
     api = Api(
         app, 
         version='1.0',
-        title='Hospital Management API',
+        title='Hospital Managemeent API',
         description='API for managing hospitals, patients, doctors, and medications',
         doc='/swagger/',
         prefix='/api/v1',
