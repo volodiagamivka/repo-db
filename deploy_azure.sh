@@ -1,26 +1,43 @@
+
 set -e
-
-echo "deployment start"
-
 
 sudo apt-get update
 sudo apt-get upgrade -y
 sudo apt-get install -y python3 python3-pip python3-venv mysql-client
-sudo apt-get install -y default-libmysqlclient-dev build-essential pkg-config
-APP_DIR="/opt/hospital-api"
-sudo mkdir -p $APP_DIR
-sudo chown $USER:$USER $APP_DIR
+sudo apt-get install -y default-libmysqlclient-dev build-essential pkg-config git
 
-cp -r . $APP_DIR/
+
+APP_DIR="$HOME/repo-db"
+mkdir -p $APP_DIR
 cd $APP_DIR
 
-python3 -m venv venv
+echo "Working directory: $APP_DIR"
+
+
+if [ ! -d ".git" ]; then
+  echo "Initializing git repository..."
+  git init
+  git remote add origin https://github.com/volodiagamivka/repo-db.git || git remote set-url origin https://github.com/volodiagamivka/repo-db.git
+  git fetch origin
+  git checkout -b main || git checkout main
+  git reset --hard origin/main
+else
+  echo "Updating git repository..."
+  git fetch origin
+  git reset --hard origin/main
+  git clean -fd
+fi
+
+
+if [ -d "venv" ]; then
+else
+  python3 -m venv venv
+fi
+
 source venv/bin/activate
 
 pip install --upgrade pip
 pip install -r requirements.txt
-
-
 
 sudo tee /etc/systemd/system/hospital-api.service > /dev/null <<EOF
 [Unit]
@@ -48,9 +65,6 @@ sleep 3
 sudo systemctl status hospital-api --no-pager
 
 echo ""
-echo "=== finished ==="
-echo "API : http://$(curl -s ifconfig.me):5000"
+echo "API: http://$(curl -s ifconfig.me):5000"
 echo "Swagger: http://$(curl -s ifconfig.me):5000/swagger/"
 echo ""
-
-
