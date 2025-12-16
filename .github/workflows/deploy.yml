@@ -21,17 +21,94 @@ jobs:
           key: ${{ secrets.AZURE_SSH_KEY }}
           port: 22
           script: |
-            echo " Starting deployment..."
-            cd ~/repo-db
+            echo "Starting deployment..."
 
-            echo " Pulling latest changes..."
-            git fetch origin
-            git reset --hard origin/main
+            # Determine application directory based on where service is running
+            # Check service configuration to find the actual working directory
+            SERVICE_DIR=$(sudo systemctl show hospital-api -p WorkingDirectory --value 2>/dev/null || echo "")
 
-            echo " Restarting service..."
+            if [ -n "$SERVICE_DIR" ] && [ -d "$SERVICE_DIR" ]; then
+              APP_DIR="$SERVICE_DIR"
+              echo "Found service working directory: $APP_DIR"
+            elif [ -d "/opt/hospital-api" ]; then
+              APP_DIR="/opt/hospital-api"
+            elif [ -d "$HOME/repo-db" ]; then
+              APP_DIR="$HOME/repo-db"
+            else
+              echo "Error: Application directory not found!"
+              exit 1
+            fi
+
+            cd $APP_DIR
+            echo "Working directory: $APP_DIR"
+
+            echo "Pulling latest changes..."
+
+            # Strategy: Update ~/repo-db first, then sync to service directory
+            if [ -d "$HOME/repo-db/.git" ]; then
+              echo "Updating git repository in $HOME/repo-db..."
+              cd $HOME/repo-db
+              git fetch origin
+              git reset --hard origin/main
+              git clean -fd
+              
+              # If service runs from different directory, sync files
+              if [ "$APP_DIR" != "$HOME/repo-db" ]; then
+                echo "Syncing code from $HOME/repo-db to $APP_DIR..."
+                rsync -av --delete \
+                  --exclude='.git' \
+                  --exclude='venv' \
+                  --exclude='__pycache__' \
+                  --exclude='*.pyc' \
+                  --exclude='.env' \
+                  $HOME/repo-db/ $APP_DIR/
+              fi
+              
+              cd $APP_DIR
+            elif [ -d "$APP_DIR/.git" ]; then
+              # If service directory has git, update it directly
+              echo "Updating git repository in $APP_DIR..."
+              cd $APP_DIR
+              git fetch origin
+              git reset --hard origin/main
+              git clean -fd
+            else
+              echo "Error: No git repository found in $HOME/repo-db or $APP_DIR"
+              exit 1
+            fi
+
+            echo "Updating Python dependencies..."
+            if [ -d "venv" ]; then
+              source venv/bin/activate
+              pip install --upgrade pip
+              pip install -r requirements.txt --upgrade --quiet
+            else
+              echo "Warning: venv not found, creating new one..."
+              python3 -m venv venv
+              source venv/bin/activate
+              pip install --upgrade pip
+              pip install -r requirements.txt
+            fi
+
+            echo "Reloading systemd daemon..."
+            sudo systemctl daemon-reload
+
+            echo "Restarting service..."
             sudo systemctl restart hospital-api
+
+            echo "Waiting for service to start..."
+            sleep 3
 
             echo "Checking service status..."
             sudo systemctl status hospital-api --no-pager
 
-            echo " Deployment completed!"
+            echo "Verifying service is active..."
+            if sudo systemctl is-active --quiet hospital-api; then
+              echo "✅ Service is running successfully!"
+            else
+              echo "❌ Service failed to start!"
+              sudo systemctl status hospital-api --no-pager
+              exit 1
+            fi
+
+            echo "Deployment completed!"
