@@ -27,7 +27,7 @@ def create_patient():
 def update_patient(patient_id):
     data = request.json
 
-    # Конвертація дати з рядка у формат datetime.date
+    # Date conversion from string to datetime.date format
     if 'date_of_birthday' in data:
         try:
             data['date_of_birthday'] = datetime.strptime(data['date_of_birthday'], '%Y-%m-%d').date()

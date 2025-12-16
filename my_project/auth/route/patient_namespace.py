@@ -1,6 +1,4 @@
-"""
-Flask-RESTX namespace для пацієнтів
-"""
+
 from flask_restx import Namespace, Resource, fields
 from my_project.auth.service.PatientService import PatientService
 from datetime import datetime

@@ -4,7 +4,7 @@ from my_project.auth.controller.patient_controller import get_all_patients, get_
 
 patient_bp = Blueprint('patient', __name__)
 
-# Маршрути для операцій з пацієнтами
+# Routes for patient operations
 patient_bp.route('/patients', methods=['GET'])(get_all_patients)
 patient_bp.route('/patients/<int:patient_id>', methods=['GET'])(get_patient_by_id)
 patient_bp.route('/patients', methods=['POST'])(create_patient)

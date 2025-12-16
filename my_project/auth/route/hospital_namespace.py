@@ -1,5 +1,5 @@
 """
-Flask-RESTX namespace для лікарень
+Flask-RESTX namespace for hospitals
 """
 from flask_restx import Namespace, Resource, fields
 from my_project.auth.service.HospitalService import HospitalService

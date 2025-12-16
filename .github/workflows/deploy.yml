@@ -22,11 +22,11 @@ jobs:
           port: 22
           script: |
             echo "Starting deployment..."
-            cd ~/database-flask || cd ~/hospital-api || { echo " Directory not found!"; exit 1; }
+            cd ~/repo-db || cd ~/hospital-api || { echo " Directory not found!"; exit 1; }
 
             echo "Pulling latest changes..."
             git fetch origin
-            git reset --hard origin/main  # Змініть на вашу гілку
+            git reset --hard origin/main  
 
             echo "Installing/updating dependencies..."
             if [ -d "venv" ]; then

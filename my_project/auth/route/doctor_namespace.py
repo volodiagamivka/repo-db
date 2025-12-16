@@ -1,5 +1,5 @@
 """
-Flask-RESTX namespace для лікарів
+Flask-RESTX namespace for doctors
 """
 from flask_restx import Namespace, Resource, fields
 from my_project.auth.service.DoctorService import DoctorService
