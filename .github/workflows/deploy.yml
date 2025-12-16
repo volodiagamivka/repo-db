@@ -23,6 +23,7 @@ jobs:
           script: |
             echo "Starting deployment..."
 
+            # Work directly with ~/repo-db (no copying to other directories)
             APP_DIR="$HOME/repo-db"
 
             if [ ! -d "$APP_DIR" ]; then
@@ -52,6 +53,7 @@ jobs:
             find $APP_DIR -type f -name "*.pyc" -delete 2>/dev/null || true
             find $APP_DIR -type f -name "*.pyo" -delete 2>/dev/null || true
 
+            echo "Updating Python dependencies..."
             if [ -d "venv" ]; then
               source venv/bin/activate
               pip install --upgrade pip
@@ -87,18 +89,47 @@ jobs:
             sudo systemctl daemon-reload
 
             echo "Stopping service completely..."
-            sudo systemctl stop hospital-api || true
-            sleep 2
+            if sudo systemctl is-active --quiet hospital-api 2>/dev/null; then
+              echo "Service is active, stopping..."
+              sudo systemctl stop hospital-api || echo "Warning: Failed to stop service gracefully"
+            else
+              echo "Service is not active"
+            fi
+            sleep 3
 
-            # Kill any remaining gunicorn processes
-            sudo pkill -f "gunicorn.*app:app" || true
-            sleep 1
+            # Kill any remaining gunicorn processes (but not the SSH session)
+            echo "Checking for remaining gunicorn processes..."
+            PIDS=$(pgrep -f "gunicorn.*app:app" 2>/dev/null || true)
+            if [ -n "$PIDS" ]; then
+              echo "Killing remaining gunicorn processes: $PIDS"
+              sudo pkill -f "gunicorn.*app:app" || true
+              sleep 2
+            else
+              echo "No remaining gunicorn processes found"
+            fi
 
             echo "Starting service..."
-            sudo systemctl start hospital-api
+            if ! sudo systemctl start hospital-api; then
+              echo "❌ Failed to start service!"
+              echo "Checking service logs..."
+              sudo journalctl -u hospital-api -n 30 --no-pager
+              exit 1
+            fi
 
             echo "Waiting for service to start..."
-            sleep 8
+            sleep 5
+            
+            # Wait for service to become active with timeout
+            TIMEOUT=30
+            ELAPSED=0
+            while [ $ELAPSED -lt $TIMEOUT ]; do
+              if sudo systemctl is-active --quiet hospital-api 2>/dev/null; then
+                echo "✅ Service is active!"
+                break
+              fi
+              sleep 1
+              ELAPSED=$((ELAPSED + 1))
+            done
 
             echo "Checking service status..."
             sudo systemctl status hospital-api --no-pager || true
@@ -108,7 +139,7 @@ jobs:
               echo "✅ Service is running successfully!"
               echo "Checking if service is listening on port 5000..."
               sleep 2
-              if sudo netstat -tlnp | grep :5000 || sudo ss -tlnp | grep :5000; then
+              if sudo netstat -tlnp 2>/dev/null | grep :5000 || sudo ss -tlnp 2>/dev/null | grep :5000; then
                 echo "✅ Service is listening on port 5000!"
               else
                 echo "⚠️ Service is running but not listening on port 5000"
