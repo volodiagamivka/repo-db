@@ -23,7 +23,6 @@ jobs:
           script: |
             echo "Starting deployment..."
 
-            # Work directly with ~/repo-db (no copying to other directories)
             APP_DIR="$HOME/repo-db"
 
             if [ ! -d "$APP_DIR" ]; then
@@ -53,7 +52,6 @@ jobs:
             find $APP_DIR -type f -name "*.pyc" -delete 2>/dev/null || true
             find $APP_DIR -type f -name "*.pyo" -delete 2>/dev/null || true
 
-            echo "Updating Python dependencies..."
             if [ -d "venv" ]; then
               source venv/bin/activate
               pip install --upgrade pip
@@ -89,7 +87,7 @@ jobs:
             sudo systemctl daemon-reload
 
             echo "Stopping service completely..."
-            sudo systemctl stop hospital-api
+            sudo systemctl stop hospital-api || true
             sleep 2
 
             # Kill any remaining gunicorn processes
@@ -100,17 +98,25 @@ jobs:
             sudo systemctl start hospital-api
 
             echo "Waiting for service to start..."
-            sleep 5
+            sleep 8
 
             echo "Checking service status..."
-            sudo systemctl status hospital-api --no-pager
+            sudo systemctl status hospital-api --no-pager || true
 
             echo "Verifying service is active..."
             if sudo systemctl is-active --quiet hospital-api; then
               echo "✅ Service is running successfully!"
+              echo "Checking if service is listening on port 5000..."
+              sleep 2
+              if sudo netstat -tlnp | grep :5000 || sudo ss -tlnp | grep :5000; then
+                echo "✅ Service is listening on port 5000!"
+              else
+                echo "⚠️ Service is running but not listening on port 5000"
+              fi
             else
               echo "❌ Service failed to start!"
-              sudo systemctl status hospital-api --no-pager
+              echo "Checking service logs..."
+              sudo journalctl -u hospital-api -n 50 --no-pager
               exit 1
             fi
 

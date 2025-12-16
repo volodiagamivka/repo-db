@@ -33,8 +33,13 @@ class PatientList(Resource):
     @patient_ns.marshal_list_with(patient_model)
     def get(self):
         """Get list of all patients"""
-        patients = patient_service.get_all_patients()
-        return [patient.to_dict() for patient in patients]
+        try:
+            patients = patient_service.get_all_patients()
+            if patients is None:
+                patient_ns.abort(500, 'Failed to retrieve patients from database')
+            return [patient.to_dict() for patient in patients]
+        except Exception as e:
+            patient_ns.abort(500, f'Internal server error: {str(e)}')
 
     @patient_ns.doc('create_patient')
     @patient_ns.expect(patient_input_model, validate=True)

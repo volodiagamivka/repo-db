@@ -20,7 +20,7 @@ def update_hospital(hospital_id):
     data = request.json
     result = hospital_service.update_hospital(hospital_id, data)
     if isinstance(result, dict) and 'error' in result:
-        return jsonify(result), 400  # Повертаємо помилку тригера
+        return jsonify(result), 400  
     if result:
         return jsonify({'message': 'Hospital updated successfully', 'hospital': result.to_dict()}), 200
     return jsonify({'message': 'Hospital not found'}), 404

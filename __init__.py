@@ -25,6 +25,14 @@ def create_app():
 
     db.init_app(app)
     
+    # Test database connection
+    with app.app_context():
+        try:
+            db.engine.connect()
+            print("✅ Database connection successful")
+        except Exception as e:
+            print(f"❌ Database connection failed: {e}")
+    
     api = Api(
         app, 
         version='1.0',
