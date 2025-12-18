@@ -29,7 +29,7 @@ patient_service = PatientService()
 
 @patient_ns.route('/')
 class PatientList(Resource):
-    @patient_ns.doc('get_all_patients')
+    #@patient_ns.doc('get_all_patients')
     @patient_ns.marshal_list_with(patient_model)
     def get(self):
         """Get list of all patients"""
